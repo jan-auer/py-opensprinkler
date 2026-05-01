@@ -75,16 +75,20 @@ class Station(object):
         self._controller._state["stations"][bit_property] = bit_list
         return await self._set_attribute(bit_update_name + str(bank), bits)
 
-    async def run(self, seconds=None):
+    async def run(self, seconds=None, qo=None):
         """Run station"""
         if seconds is None:
             seconds = 60
         params = {"en": 1, "t": seconds}
+        if qo is not None:
+            params["qo"] = qo
         return await self._manual_run(params)
 
-    async def stop(self):
+    async def stop(self, ssta=None):
         """Stop station"""
         params = {"en": 0}
+        if ssta is not None:
+            params["ssta"] = int(ssta)
         return await self._manual_run(params)
 
     async def toggle(self):
