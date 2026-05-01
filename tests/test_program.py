@@ -68,6 +68,13 @@ class TestProgram:
             controller.stations[0].end_time - controller.stations[0].start_time
         ) == 25
 
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_program_run_with_qo(self, controller, program):
+        await program.set_station_duration(0, 25)
+        assert await program.run(qo=0)
+        await controller.stations[0].stop()
+
     @pytest.mark.skipif(
         FIRMWARE_VERSION <= 216, reason="only for version 217 and above"
     )

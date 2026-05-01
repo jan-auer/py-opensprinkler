@@ -46,11 +46,13 @@ class Program(object):
         content = await self._controller.request("/cp", params)
         return content["result"]
 
-    async def _manual_run(self, uwt=None):
+    async def _manual_run(self, uwt=None, qo=None):
         """Run program"""
         if uwt is None:
             uwt = self.use_weather_adjustments
         params = {"pid": self._index, "uwt": int(uwt)}
+        if qo is not None:
+            params["qo"] = qo
         content = await self._controller.request("/mp", params)
         return content["result"]
 
@@ -154,9 +156,9 @@ class Program(object):
         else:
             return await self._set_variable("en", 0)
 
-    async def run(self, uwt=None):
+    async def run(self, uwt=None, qo=None):
         """Run program"""
-        return await self._manual_run(uwt)
+        return await self._manual_run(uwt, qo)
 
     async def set_name(self, name):
         dlist = self._get_program_data().copy()

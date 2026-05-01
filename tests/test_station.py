@@ -146,3 +146,20 @@ class TestStation:
 
         await controller.stations[0].set_sequential_operation(False)
         assert not controller.stations[0].sequential_operation
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_run_with_qo(self, controller):
+        await controller.refresh()
+        assert await controller.stations[0].run(seconds=30, qo=0)
+        assert controller.stations[0].is_running
+        await controller.stations[0].stop()
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_stop_with_ssta(self, controller):
+        await controller.refresh()
+        await controller.stations[0].run(seconds=30)
+        assert controller.stations[0].is_running
+        assert await controller.stations[0].stop(ssta=True)
+        assert not controller.stations[0].is_running
