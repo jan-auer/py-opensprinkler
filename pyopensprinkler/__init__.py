@@ -441,14 +441,15 @@ class Controller(object):
 
         return await self._set_option("wl", level)
 
-    async def run_once_program(self, station_times):
+    async def run_once_program(self, station_times, uwt=None, qo=None):
         """Run once program"""
-        params = {"t": station_times}
-
-        t = json.dumps(params.pop("t", None)).replace(" ", "")
-        t = t.strip()
-
-        content = await self.request("/cr", None, f"t={t}")
+        t = json.dumps(station_times).replace(" ", "").strip()
+        params = {}
+        if uwt is not None:
+            params["uwt"] = uwt
+        if qo is not None:
+            params["qo"] = qo
+        content = await self.request("/cr", params, f"t={t}")
         return content["result"]
 
     async def set_password(self, password):

@@ -138,3 +138,62 @@ class TestController:
             await controller.set_pause(-1)
         with pytest.raises(ValueError):
             await controller.set_pause(86400 + 1)
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_run_once_program_uwt(self, controller):
+        await controller.refresh()
+        await controller.set_water_level(20)
+        station_times = [25] + [0] * (len(controller.stations) - 1)
+
+        # uwt=0: no weather adjustment → full 25 seconds
+        await controller.run_once_program(station_times, uwt=0)
+        await asyncio.sleep(1)
+        await controller.refresh()
+        assert controller.stations[0].end_time - controller.stations[0].start_time == 25
+        await controller.stop_all_stations()
+
+        # uwt=1: apply 20% water level → 25 * 0.20 = 5 seconds
+        await controller.run_once_program(station_times, uwt=1)
+        await asyncio.sleep(1)
+        await controller.refresh()
+        assert controller.stations[0].end_time - controller.stations[0].start_time == 5
+        await controller.stop_all_stations()
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_run_once_program_qo_append(self, controller):
+        await controller.refresh()
+        # Start station 0 manually; qo=0 (append) must not cancel it
+        await controller.stations[0].run(seconds=60)
+        assert controller.stations[0].is_running
+        station_times = [0, 30] + [0] * (len(controller.stations) - 2)
+        await controller.run_once_program(station_times, qo=0)
+        assert controller.stations[0].is_running
+        await controller.stop_all_stations()
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_run_once_program_qo_replace(self, controller):
+        await controller.refresh()
+        # Start station 0 manually; qo=2 (replace) must cancel it and start station 1
+        await controller.stations[0].run(seconds=60)
+        assert controller.stations[0].is_running
+        station_times = [0, 30] + [0] * (len(controller.stations) - 2)
+        await controller.run_once_program(station_times, qo=2)
+        assert not controller.stations[0].is_running
+        assert controller.stations[1].is_running
+        await controller.stop_all_stations()
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_run_once_program_uwt_and_qo(self, controller):
+        await controller.refresh()
+        await controller.set_water_level(20)
+        # qo=2: clear queue; uwt=1 with 20% water level → 25 * 0.20 = 5 seconds
+        station_times = [25] + [0] * (len(controller.stations) - 1)
+        await controller.run_once_program(station_times, uwt=1, qo=2)
+        await asyncio.sleep(1)
+        await controller.refresh()
+        assert controller.stations[0].end_time - controller.stations[0].start_time == 5
+        await controller.stop_all_stations()

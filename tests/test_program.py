@@ -70,10 +70,49 @@ class TestProgram:
 
     @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
     @pytest.mark.asyncio
-    async def test_program_run_with_qo(self, controller, program):
+    async def test_program_run_with_qo_append(self, controller, program):
         await program.set_station_duration(0, 25)
+        # Start station 1 manually; qo=0 (append) must not cancel it
+        await controller.stations[1].run(seconds=60)
+        assert controller.stations[1].is_running
         assert await program.run(qo=0)
-        await controller.stations[0].stop()
+        assert controller.stations[1].is_running
+        await controller.stop_all_stations()
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_program_run_with_qo_preempt(self, controller, program):
+        await program.set_station_duration(0, 25)
+        # Start station 1 manually; qo=1 (insert ahead) must not cancel it either
+        await controller.stations[1].run(seconds=60)
+        assert controller.stations[1].is_running
+        assert await program.run(qo=1)
+        assert controller.stations[1].is_running
+        await controller.stop_all_stations()
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_program_run_with_qo_replace(self, controller, program):
+        await program.set_station_duration(0, 25)
+        # Start station 1 manually; qo=2 (replace) must cancel it and start the program
+        await controller.stations[1].run(seconds=60)
+        assert controller.stations[1].is_running
+        assert await program.run(qo=2)
+        assert not controller.stations[1].is_running
+        assert controller.stations[0].is_running
+        await controller.stop_all_stations()
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_program_run_with_uwt_and_qo(self, controller, program):
+        await program.set_station_duration(0, 25)
+        await controller.set_water_level(20)
+        # qo=2: clear queue; uwt=True with 20% water level → 25 * 0.20 = 5 seconds
+        assert await program.run(uwt=True, qo=2)
+        await asyncio.sleep(1)
+        await controller.refresh()
+        assert controller.stations[0].end_time - controller.stations[0].start_time == 5
+        await controller.stop_all_stations()
 
     @pytest.mark.skipif(
         FIRMWARE_VERSION <= 216, reason="only for version 217 and above"
