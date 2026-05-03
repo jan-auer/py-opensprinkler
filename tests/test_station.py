@@ -149,17 +149,52 @@ class TestStation:
 
     @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
     @pytest.mark.asyncio
-    async def test_run_with_qo(self, controller):
+    async def test_run_with_qo_append(self, controller):
         await controller.refresh()
-        assert await controller.stations[0].run(seconds=30, qo=0)
+        await controller.stations[0].run(seconds=60)
         assert controller.stations[0].is_running
-        await controller.stations[0].stop()
+        # qo=0 (append): queue station 1, must not cancel the currently running station 0
+        await controller.stations[1].run(seconds=30, qo=0)
+        assert controller.stations[0].is_running
+        await controller.stop_all_stations()
 
     @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
     @pytest.mark.asyncio
-    async def test_stop_with_ssta(self, controller):
+    async def test_run_with_qo_preempt(self, controller):
         await controller.refresh()
-        await controller.stations[0].run(seconds=30)
+        await controller.stations[0].run(seconds=60)
         assert controller.stations[0].is_running
-        assert await controller.stations[0].stop(ssta=True)
+        # qo=1 (insert ahead): station 1 should start running immediately
+        await controller.stations[1].run(seconds=30, qo=1)
+        assert controller.stations[1].is_running
         assert not controller.stations[0].is_running
+        await controller.stop_all_stations()
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_stop_with_ssta_shifts_queue(self, controller):
+        await controller.refresh()
+        # Queue two stations via run_once; station 0 runs first, station 1 is waiting
+        station_times = [30, 30] + [0] * (len(controller.stations) - 2)
+        await controller.run_once_program(station_times, qo=2)
+        assert controller.stations[0].is_running
+        assert not controller.stations[1].is_running
+        # ssta=True: stopping station 0 shifts station 1 forward — it should start immediately
+        await controller.stations[0].stop(ssta=True)
+        assert not controller.stations[0].is_running
+        assert controller.stations[1].is_running
+        await controller.stop_all_stations()
+
+    @pytest.mark.skipif(FIRMWARE_VERSION < 221, reason="only for version 221 and above")
+    @pytest.mark.asyncio
+    async def test_stop_without_ssta_preserves_queue(self, controller):
+        await controller.refresh()
+        station_times = [30, 30] + [0] * (len(controller.stations) - 2)
+        await controller.run_once_program(station_times, qo=2)
+        assert controller.stations[0].is_running
+        assert not controller.stations[1].is_running
+        # No ssta: stopping station 0 does not shift station 1 — it stays waiting
+        await controller.stations[0].stop()
+        assert not controller.stations[0].is_running
+        assert not controller.stations[1].is_running
+        await controller.stop_all_stations()
